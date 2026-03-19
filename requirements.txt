@@ -13,3 +13,5 @@ bcrypt
 lightgbm
 shap
 altair
+dvc
+dvc[s3]

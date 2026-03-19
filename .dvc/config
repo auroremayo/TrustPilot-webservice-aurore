@@ -1,3 +1,7 @@
+[core]
+    remote = origin
 ['remote "origin"']
     url = s3://dvc
     endpointurl = https://dagshub.com/auroremayo/TrustPilot-webservice-aurore.s3
+    access_key_id = 3a9961a0e64b794ef7443c9217b5599716604b63
+    secret_access_key = 3a9961a0e64b794ef7443c9217b5599716604b63

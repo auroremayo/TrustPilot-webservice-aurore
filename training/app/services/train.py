@@ -16,6 +16,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
+import subprocess
 
 import joblib
 import lightgbm as lgb
@@ -40,7 +41,8 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 
-from backend.app.services import nlp_pipeline
+from .nlp_pipeline import processing_pipeline
+from common import setup_dvc
 
 # ── Configuration du logger ────────────────────────────────────────────────────
 logging.basicConfig(
@@ -58,15 +60,7 @@ def download_nltk_resources():
 MODELS_DIR   = Path(__file__).parent.parent / "models"
 MLFLOW_DIR   = Path(__file__).parent.parent / "mlflow"
 EXPERIMENT   = "SentimentAI - LightGBM"
-
-STOP_WORDS_EXTRA = {
-    ",", ".", "``", "@", "*", "(", ")", "[", "]", "...", "-", "_",
-    ">", "<", ":", "/", "//", "///", "=", "--", "©", "~", ";",
-    "\\", "\\\\", '"', "'", "''", '""', "'m", "'ve", "n't",
-    "!", "?", "'re", "rd", "'s", "%",
-}
-
-CLASS_NAMES  = ["Négatif", "Neutre", "Positif"]
+CLASS_NAMES = ["Négatif", "Neutre", "Positif"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -95,7 +89,7 @@ def preprocess_text(df: pd.DataFrame) -> pd.Series:
     df['texts'] = (df["summary"] + " " + df["reviewText"]).str.lower()
 
     total = len(df['texts'])
-    df['texts']=df['texts'].apply(lambda x: nlp_pipeline.processing_pipeline(x), axis=1)
+    df['texts']=df['texts'].apply(lambda x: processing_pipeline(x))
 
     logger.info("Préprocessing terminé.")
     return df['texts']
@@ -130,6 +124,7 @@ def balance_dataset(X: pd.Series, y: pd.Series) -> tuple[pd.Series, pd.Series]:
 
 def train(
     csv_path: str,
+    dataset_name: str,
     max_features: int = 20_000,
     ngram_max: int = 2,
     learning_rate: float = 0.05,
@@ -142,8 +137,15 @@ def train(
 ) -> None:
     download_nltk_resources()
 
+    setup_dvc()
+    dataset_path = csv_path + "/" + dataset_name
+    subprocess.run(["dvc", "push", dataset_path], check=True)
+    # pull dataset depuis DVC
+    subprocess.run(["dvc", "pull", dataset_path], check=True)
+
     # ── Chargement ──────────────────────────────────────────────────────────
-    df = load_and_clean(csv_path)
+    csv_file = csv_path + "/" + dataset_name
+    df = load_and_clean(csv_file)
 
     # ── Préprocessing ────────────────────────────────────────────────────────
     texts = preprocess_text(df)
@@ -296,6 +298,12 @@ def train(
         joblib.dump(model, model_path)
         joblib.dump(tfidf, tfidf_path)
         logger.info("Modèles sauvegardés dans %s", MODELS_DIR)
+
+        subprocess.run(["dvc", "add", "models/"], check=True)
+        subprocess.run(["git", "add", "models/"], check=True)
+        subprocess.run(["git", "commit", "-m", f"Add trained models - run {run_id}"], check=True)
+        subprocess.run(["git", "push"], check=True)
+        subprocess.run(["dvc", "push"], check=True)
 
         # Log des pkl comme artefacts MLflow également
         mlflow.log_artifact(str(model_path))
