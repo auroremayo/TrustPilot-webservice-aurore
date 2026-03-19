@@ -9,7 +9,7 @@ COPY requirements_train.txt .
 RUN pip install --no-cache-dir -r requirements_train.txt
 
 # Copier l'application
-COPY app/ ./app/
+COPY . .
 
 # Lancer l'API avec Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
