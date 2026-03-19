@@ -1,0 +1,15 @@
+uvicorn
+scikit-learn==1.8.0
+joblib
+pydantic
+nltk
+scipy
+numpy
+streamlit
+requests
+python-dotenv
+fastapi
+bcrypt
+lightgbm
+shap
+altair

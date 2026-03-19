@@ -1,0 +1,13 @@
+# Dépendances pour le script d'entraînement uniquement
+# Installer avec : pip install -r training/requirements_train.txt
+
+pandas
+numpy
+scikit-learn==1.8.0
+lightgbm
+nltk
+mlflow
+joblib
+matplotlib
+seaborn
+tqdm

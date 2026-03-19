@@ -1,0 +1,35 @@
+# Données sensibles
+.env
+data/users.json
+data/predictions_log.jsonl
+
+# CSV d'entraînement (trop lourd pour Git)
+df_merged_clean.csv
+data/raw/df_merged_clean.csv
+data/raw/df_merged_clean_*.csv
+*.csv
+
+# Modèles ML (trop lourds — utiliser DVC ou partage manuel)
+models/*.pkl
+
+# MLflow (runs locaux)
+mlflow/
+
+# Artefacts d'entraînement temporaires
+training/artifacts/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+/data-file.bin
