@@ -33,3 +33,4 @@ env/
 .DS_Store
 Thumbs.db
 /data-file.bin
+/models

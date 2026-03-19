@@ -139,7 +139,7 @@ def train(
 
     setup_dvc()
     dataset_path = csv_path + "/" + dataset_name
-    subprocess.run(["dvc", "push", dataset_path], check=True)
+  
     # pull dataset depuis DVC
     subprocess.run(["dvc", "pull", dataset_path], check=True)
 
@@ -299,8 +299,9 @@ def train(
         joblib.dump(tfidf, tfidf_path)
         logger.info("Modèles sauvegardés dans %s", MODELS_DIR)
 
-        subprocess.run(["dvc", "add", "models/"], check=True)
-        subprocess.run(["git", "add", "models/"], check=True)
+        subprocess.run(["dvc", "add", str(model_path)], check=True)
+        subprocess.run(["dvc", "add", str(tfidf_path)], check=True)
+        subprocess.run(["git", "add", "."], check=True)
         subprocess.run(["git", "commit", "-m", f"Add trained models - run {run_id}"], check=True)
         subprocess.run(["git", "push"], check=True)
         subprocess.run(["dvc", "push"], check=True)

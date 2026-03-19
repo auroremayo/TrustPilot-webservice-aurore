@@ -1,0 +1,5 @@
+outs:
+- md5: db105b7325f32352facfb32da889b48a
+  size: 275756
+  hash: md5
+  path: trustpilot_lgbm_model.pkl
