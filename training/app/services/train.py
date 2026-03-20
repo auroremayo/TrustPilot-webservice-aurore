@@ -40,7 +40,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-
+from ..core.config import MODELS_DIR
 from .nlp_pipeline import processing_pipeline
 from common import setup_git
 
@@ -58,7 +58,7 @@ def download_nltk_resources():
         nltk.download(resource, quiet=True)
 
 # ── Constantes ─────────────────────────────────────────────────────────────────
-MODELS_DIR   = Path(__file__).parent.parent / "models"
+MODELS_DIR   = MODELS_DIR
 MLFLOW_DIR   = Path(__file__).parent.parent / "mlflow"
 EXPERIMENT   = "SentimentAI - LightGBM"
 CLASS_NAMES = ["Négatif", "Neutre", "Positif"]
