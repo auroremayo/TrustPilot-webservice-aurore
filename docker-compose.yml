@@ -52,3 +52,25 @@ services:
         --port 5000
         --backend-store-uri /mlflow/mlruns
         --default-artifact-root /mlflow/artifacts
+
+  # ── 5. Training API ────────────────────────────────────────────────────────
+  # Service API pour l'entraînement des modèles
+  # Démarré uniquement avec : docker compose --profile training up training-api
+  training-api:
+    build:
+      context: .
+      dockerfile: training/Dockerfile
+    profiles:
+      - training
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./mlruns:/app/mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - GIT_USER=auroremayo
+      - GIT_TOKEN=${GIT_TOKEN}
+    depends_on:
+      - mlflow
