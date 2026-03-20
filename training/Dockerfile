@@ -3,11 +3,13 @@ FROM python:3.12
 WORKDIR /app
 
 
+ # Installer libgomp pour LightGBM
 RUN apt-get update && apt-get install -y \
-    gcc \
+    libgomp1 \
     build-essential \
-    libssl-dev \
-    libffi-dev \
+    gcc \
+    git \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copier les fichiers de dépendances
