@@ -7,7 +7,7 @@ import subprocess
 import joblib
 
 from ..core.config import MODEL_PATH, VECTORIZER_PATH
-from nlp_pipeline import processing_pipeline
+from .nlp_pipeline import processing_pipeline
 from common.setup_dvc import setup_dvc
 
 logger = logging.getLogger(__name__)
