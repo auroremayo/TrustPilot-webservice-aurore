@@ -1,11 +1,20 @@
-FROM python:3.9-slim
+FROM python:3.12
 
 WORKDIR /app
 
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copier les fichiers de dépendances
-COPY requirements_train.txt .
+COPY /training/requirements_train.txt .
 
 # Installer les dépendances
+RUN pip install --no-cache-dir dvc[s3]
 RUN pip install --no-cache-dir -r requirements_train.txt
 
 # Copier l'application
