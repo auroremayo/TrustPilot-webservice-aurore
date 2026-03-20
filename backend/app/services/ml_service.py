@@ -23,7 +23,6 @@ def get_model():
     global _model, _vectorizer
     if _model is None:
         try:
-            setup_dvc()
   
             # pull models depuis DVC
             subprocess.run(["dvc", "pull", MODEL_PATH], check=True)
