@@ -42,7 +42,7 @@ from sklearn.model_selection import train_test_split
 
 
 from .nlp_pipeline import processing_pipeline
-from common import setup_dvc, setup_git
+from common import setup_git
 
 
 # ── Configuration du logger ────────────────────────────────────────────────────
@@ -138,7 +138,6 @@ def train(
 ) -> None:
     download_nltk_resources()
 
-    setup_dvc()
     setup_git.setup_git_auth()
     dataset_path = csv_path + "/" + dataset_name
   
