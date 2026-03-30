@@ -20,7 +20,9 @@ RUN pip install --no-cache-dir dvc[s3]
 RUN pip install --no-cache-dir -r requirements_train.txt
 
 # Copier l'application
-COPY . .
+# Code de l'application
+COPY /common ./common
+COPY /training/app ./training/app
 
 # Lancer l'API avec Uvicorn
 CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
