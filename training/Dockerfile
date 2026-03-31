@@ -17,5 +17,5 @@ RUN pip install --no-cache-dir dvc[s3] && \
 COPY common ./common
 COPY training/app ./training/app
 
-# 4. Lancer l'API
+# Lancer l'API avec Uvicorn
 CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
