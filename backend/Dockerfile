@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Code de l'application
 COPY common ./common
+COPY .dvc ./.dvc
 COPY backend/app ./backend/app
 
 
