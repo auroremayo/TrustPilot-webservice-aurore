@@ -16,14 +16,14 @@ PREDICTIONS_LOG = str(DATA_DIR / "predictions_log.jsonl")
 
 # Modèles ML
 # Chemin pour Python (chargement)
-MODEL_PATH = str(MODELS_DIR / "trustpilot_lgbm_model.pkl")
+MODEL_PATH = str("MODELS_DIR" / "trustpilot_lgbm_model.pkl")
 
 # Chemin pour DVC (relatif par rapport à BASE_DIR)
 # Cela donnera "models/trustpilot_lgbm_model.pkl"
-DVC_MODEL_PATH = str(Path("models") / "trustpilot_lgbm_model.pkl")
+DVC_MODEL_PATH = str( "models" / "trustpilot_lgbm_model.pkl")
 
 VECTORIZER_PATH = str(MODELS_DIR / "tfidf_vectorizer.pkl")
-DVC_VECTORIZER_PATH = str(Path("models") / "tfidf_vectorizer.pkl")
+DVC_VECTORIZER_PATH = str( "models" / "tfidf_vectorizer.pkl")
 
 # Règles métier — quotas
 DAILY_QUOTA      = 5    # Prédictions/jour pour les users standard
