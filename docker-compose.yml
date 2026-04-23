@@ -10,7 +10,7 @@ services:
     volumes:
       - ./data/users.json:/app/data/users.json
       - ./data/predictions_log.jsonl:/app/data/predictions_log.jsonl
-      - ./models:/app/models:ro
+      - ./models:/app/models
 
   # ── 2. Reverse proxy Nginx ─────────────────────────────────────────────────
   nginx:
