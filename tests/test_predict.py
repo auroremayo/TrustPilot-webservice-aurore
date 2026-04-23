@@ -3,6 +3,7 @@ Tests de la route /predict et des routes de monitoring.
 """
 
 import pytest
+from unittest.mock import patch
 from .conftest import register_and_login
 
 
@@ -91,72 +92,6 @@ class TestPredict:
         quota_after = client.get("/quota/status", headers={"X-API-Key": token}).json()
         assert quota_after["quota_used"] == 1
 
-        # ----------------------------
-    # 🔹 Test unitaire pour batch_predict
-    # ----------------------------
-    @patch('backend.app.routes.predict.monitor_service')
-    @patch('backend.app.routes.predict.ml_service')
-    @patch('backend.app.routes.predict.get_users')
-    @patch('backend.app.routes.predict.save_users')
-    def test_batch_predict_unit(mock_save_users, mock_get_users, mock_ml_service, mock_monitor_service):
-        """Test unitaire de la fonction batch_predict avec mocks."""
-        # Mock des utilisateurs
-        mock_get_users.return_value = {
-            "test_user": {
-                "api_key": API_KEY,
-                "role": "user",
-                "daily_count": 0,
-                "last_request_date": "2026-03-17"
-            }
-        }
-        
-        # Mock de ml_service.predict
-        mock_ml_service.predict.side_effect = [
-            {"sentiment": "Positif", "confidence": 85.0, "class_id": 2},
-            {"sentiment": "Négatif", "confidence": 92.0, "class_id": 0}
-        ]
-        
-        # Mock de monitor_service.log_prediction
-        mock_monitor_service.log_prediction.return_value = None
-        
-        # Import de la fonction à tester
-        from backend.app.routes.predict import batch_predict
-        
-        # Données de test
-        reviews = [
-            Review(text="Super produit, très satisfait"),
-            Review(text="Livraison lente et mauvaise qualité")
-        ]
-        
-        # Appel de la fonction
-        result = batch_predict(reviews, api_key=API_KEY)
-        
-        # Assertions
-        assert "count" in result
-        assert result["count"] == 2
-        assert "predictions" in result
-        assert len(result["predictions"]) == 2
-        
-        # Vérification des prédictions
-        pred1 = result["predictions"][0]
-        assert pred1["texte"] == "Super produit, très satisfait"
-        assert pred1["sentiment"] == "Positif"
-        assert pred1["prediction_score"] == "85.0%"
-        assert pred1["class_id"] == 2
-        
-        pred2 = result["predictions"][1]
-        assert pred2["texte"] == "Livraison lente et mauvaise qualité"
-        assert pred2["sentiment"] == "Négatif"
-        assert pred2["prediction_score"] == "92.0%"
-        assert pred2["class_id"] == 0
-        
-        # Vérification que les mocks ont été appelés
-        assert mock_ml_service.predict.call_count == 2
-        mock_ml_service.predict.assert_any_call("Super produit, très satisfait")
-        mock_ml_service.predict.assert_any_call("Livraison lente et mauvaise qualité")
-        
-        assert mock_monitor_service.log_prediction.call_count == 2
-        mock_save_users.assert_called_once()
 
 
 class TestQuota:

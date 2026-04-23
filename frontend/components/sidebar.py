@@ -24,7 +24,7 @@ def render() -> None:
 
         # ── Auth ──────────────────────────────────────────────────────────────
         if st.session_state["token"] is None:
-            choix = st.radio("", ["Connexion", "Inscription"],
+            choix = st.radio("Choisissez une action", ["Connexion", "Inscription"],
                              horizontal=True, label_visibility="collapsed")
             st.divider()
 
@@ -39,8 +39,15 @@ def render() -> None:
                             st.success("✅ Compte créé ! Connectez-vous.")
                         elif r.status_code == 400:
                             st.error("❌ Ce pseudo existe déjà.")
+                        elif r.status_code == 422:
+                            try:
+                                detail = r.json().get("detail", [])
+                                msgs = [d.get("msg", "") for d in detail] if isinstance(detail, list) else [str(detail)]
+                                st.error("❌ " + " | ".join(msgs))
+                            except Exception:
+                                st.error("❌ Pseudo ou mot de passe invalide.")
                         else:
-                            st.error("❌ Erreur serveur.")
+                            st.error(f"❌ Erreur serveur ({r.status_code}).")
                     else:
                         st.warning("Remplissez tous les champs.")
 
