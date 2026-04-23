@@ -1,0 +1,23 @@
+artifact_path: file:D:/Documents/datascientest/projet/ML OPS/TrustPilot-webservice-aurore/mlruns/1/models/m-87f2645c92b4418289edee3e315904d3/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.6
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+mlflow_version: 3.10.1
+model_id: m-87f2645c92b4418289edee3e315904d3
+model_size_bytes: 275532
+model_uuid: m-87f2645c92b4418289edee3e315904d3
+prompts: null
+run_id: e0f10eb2f22949cb9d486ce068c23058
+utc_time_created: '2026-03-20 12:45:15.858980'

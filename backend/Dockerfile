@@ -8,7 +8,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Code de l'application
+COPY common ./common
 COPY backend/app ./app
+
 
 # Les modèles et données sont montés via docker-compose (volumes)
 
