@@ -6,7 +6,7 @@ import logging
 import subprocess
 import joblib
 
-from ..core.config import MODEL_PATH, VECTORIZER_PATH
+from ..core.config import BASE_DIR, MODEL_PATH, VECTORIZER_PATH, DVC_MODEL_PATH, DVC_VECTORIZER_PATH
 from common.nlp_pipeline import processing_pipeline
 
 
@@ -23,10 +23,10 @@ def get_model():
     global _model, _vectorizer
     if _model is None:
         try:
-  
-            # pull models depuis DVC
-            subprocess.run(["dvc", "pull", MODEL_PATH], check=True)
-            subprocess.run(["dvc", "pull", VECTORIZER_PATH], check=True)
+            subprocess.run(["dvc", "pull", DVC_MODEL_PATH], cwd=str(BASE_DIR), check=True)
+            subprocess.run(["dvc", "pull", DVC_VECTORIZER_PATH], cwd=str(BASE_DIR), check=True)
+            # subprocess.run(["dvc", "pull", MODEL_PATH], check=True)
+            # subprocess.run(["dvc", "pull", VECTORIZER_PATH], check=True)
 
             _model      = joblib.load(MODEL_PATH)
             _vectorizer = joblib.load(VECTORIZER_PATH)
