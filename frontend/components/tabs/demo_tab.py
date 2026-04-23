@@ -9,7 +9,7 @@ import streamlit as st
 
 from utils import api_client
 from utils.constants import SENTIMENT_COLORS, SENTIMENT_EMOJI, sentiment_badge
-from utils.nlp_pipeline import processing_pipeline
+from common.nlp_pipeline import processing_pipeline
 
 
 def render(model, vectorizer, token: str, is_admin: bool) -> None:
