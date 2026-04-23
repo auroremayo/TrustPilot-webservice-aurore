@@ -41,7 +41,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 from ..core.config import MODELS_DIR
-from .nlp_pipeline import processing_pipeline
+from common.nlp_pipeline import processing_pipeline
 from common import setup_git
 
 
