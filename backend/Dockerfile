@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN python -m nltk.downloader punkt punkt_tab stopwords wordnet
 # Code de l'application
 COPY common ./common
 COPY .dvc ./.dvc

@@ -3,6 +3,7 @@ Chargement et utilisation du modèle LightGBM + TF-IDF.
 """
 
 import logging
+import os
 import subprocess
 import joblib
 
@@ -23,10 +24,12 @@ def get_model():
     global _model, _vectorizer
     if _model is None:
         try:
-            subprocess.run(["dvc", "pull", "models/trustpilot_lgbm_model.pkl"], check=True)
-            subprocess.run(["dvc", "pull", "models/tfidf_vectorizer.pkl"], check=True)
-            # subprocess.run(["dvc", "pull", MODEL_PATH], check=True)
-            # subprocess.run(["dvc", "pull", VECTORIZER_PATH], check=True)
+            # Pull DVC uniquement si les fichiers sont absents (pas en Docker avec volume)
+            if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
+                try:
+                    subprocess.run(["dvc", "pull", "models"], check=True)
+                except Exception as dvc_err:
+                    logger.warning("DVC pull impossible (normal en Docker) : %s", dvc_err)
 
             _model      = joblib.load(MODEL_PATH)
             _vectorizer = joblib.load(VECTORIZER_PATH)
