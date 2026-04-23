@@ -23,8 +23,8 @@ def get_model():
     global _model, _vectorizer
     if _model is None:
         try:
-            subprocess.run(["dvc", "pull", DVC_MODEL_PATH], cwd=str(BASE_DIR), check=True)
-            subprocess.run(["dvc", "pull", DVC_VECTORIZER_PATH], cwd=str(BASE_DIR), check=True)
+            subprocess.run(["dvc", "pull", DVC_MODEL_PATH], check=True)
+            subprocess.run(["dvc", "pull", DVC_VECTORIZER_PATH], check=True)
             # subprocess.run(["dvc", "pull", MODEL_PATH], check=True)
             # subprocess.run(["dvc", "pull", VECTORIZER_PATH], check=True)
 
