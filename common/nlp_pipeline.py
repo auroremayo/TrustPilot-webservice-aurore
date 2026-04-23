@@ -12,7 +12,6 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-
 def download_nltk_resources():
     for res in ["punkt", "stopwords", "wordnet", "punkt_tab"]:
         try:
@@ -48,3 +47,4 @@ def processing_pipeline(text: str) -> str:
     return " ".join(
         _lemmatizer.lemmatize(t) for t in tokens if t not in _stop
     )
+nltk.download('stopwords')

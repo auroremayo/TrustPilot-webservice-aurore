@@ -13,6 +13,7 @@ import nltk; \
 [nltk.download(r, quiet=True) for r in ['punkt','stopwords','wordnet','punkt_tab']]"
 
 # Code du frontend
+COPY common ./common
 COPY frontend ./frontend
 
 # Les modèles sont montés via docker-compose (volume ./models:/app/models)

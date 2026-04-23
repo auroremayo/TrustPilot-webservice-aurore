@@ -30,7 +30,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - MODELS_DIR=/app/models
+      - PYTHONPATH=/app
     volumes:
       - ./models:/app/models:ro
     depends_on:
