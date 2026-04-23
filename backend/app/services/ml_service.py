@@ -7,7 +7,7 @@ import os
 import subprocess
 import joblib
 
-from ..core.config import MODEL_PATH, VECTORIZER_PATH
+from ..core.config import BASE_DIR, MODEL_PATH, VECTORIZER_PATH, DVC_MODEL_PATH, DVC_VECTORIZER_PATH
 from common.nlp_pipeline import processing_pipeline
 
 
