@@ -27,7 +27,7 @@ st.set_page_config(
 from components.styles import inject_css
 from components.sidebar import render as render_sidebar
 from components.tabs import (
-    demo_tab, history_tab, dataset_tab, performance_tab, monitor_tab,
+    demo_tab, history_tab, dataset_tab, performance_tab, monitor_tab, training_tab
 )
 from utils.nlp_pipeline import load_model_assets
 
@@ -114,6 +114,7 @@ else:
                   "🤖 Performance"]
     if is_admin:
         tab_labels.append("📡 Monitor")
+        tab_labels.append("🏋️ Entraînement")
 
     tabs = st.tabs(tab_labels)
 
@@ -132,3 +133,9 @@ else:
     if is_admin:
         with tabs[4]:
             monitor_tab.render(token)
+
+    if is_admin:
+        with tabs[4]:
+            monitor_tab.render(token)
+        with tabs[5]:
+            training_tab.render(token)
