@@ -27,7 +27,8 @@ print("New CWD:", os.getcwd())
 app = FastAPI(
     title="Trustpilot Sentiment API",
     description="API sécurisée · prédiction de sentiment · monitoring",
-    version="4.1"
+    version="4.1",
+    root_path="/train"
 )
 
 app.add_middleware(

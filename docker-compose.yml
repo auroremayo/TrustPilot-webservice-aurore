@@ -1,12 +1,16 @@
+version: '3.8'
+
 services:
 
-  # ── 1. Backend FastAPI ─────────────────────────────────────────────────────
+  # ── 1. Backend FastAPI (Prédiction) ─────────────────────────────────────────
   api:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "8000:80"
+    # SÉCURITÉ : On retire "ports:" pour éviter de contourner Nginx.
+    # Les conteneurs se parlent en interne. Nginx le trouvera sur le port 80.
+    expose:
+      - "80"
     volumes:
       - ./data/users.json:/app/data/users.json
       - ./data/predictions_log.jsonl:/app/data/predictions_log.jsonl
@@ -16,12 +20,12 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "8080:80"
+      - "8080:80" # Ton point d'entrée unique pour le web/frontend
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - api
-      - training-api
+      # CORRECTIF : On supprime "training-api" d'ici pour éviter que Docker ne bloque au démarrage.
 
   # ── 3. Interface Streamlit ─────────────────────────────────────────────────
   frontend:
@@ -38,7 +42,6 @@ services:
       - nginx
 
   # ── 4. MLflow Tracking Server ──────────────────────────────────────────────
-  # Démarré uniquement avec : docker compose --profile training up mlflow
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest
     profiles:
@@ -55,16 +58,15 @@ services:
         --default-artifact-root /mlflow/artifacts
 
   # ── 5. Training API ────────────────────────────────────────────────────────
-  # Service API pour l'entraînement des modèles
-  # Démarré uniquement avec : docker compose --profile training up training-api
   training-api:
     build:
       context: .
       dockerfile: training/Dockerfile
     profiles:
       - training
-    ports:
-      - "8001:8000"
+    # SÉCURITÉ : Plus besoin d'exposer le port 8001 au public. Nginx s'en charge en interne sur le port 8000.
+    expose:
+      - "8000"
     volumes:
       - ./data:/app/data
       - ./models:/app/models
