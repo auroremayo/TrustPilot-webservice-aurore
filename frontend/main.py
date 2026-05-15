@@ -133,9 +133,6 @@ else:
     if is_admin:
         with tabs[4]:
             monitor_tab.render(token)
-
-    if is_admin:
-        with tabs[4]:
-            monitor_tab.render(token)
         with tabs[5]:
             training_tab.render(token)
+        
