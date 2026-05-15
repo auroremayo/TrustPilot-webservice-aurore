@@ -20,8 +20,8 @@ def render(token: str) -> None:
     )
 
     c1, c2, _ = st.columns([1, 1, 2])
-    days_r = c1.number_input("Fenêtre récente (j)", 1, 30, 7, key="days_r")
-    days_a = c2.number_input("Fenêtre globale (j)", 7, 90, 30, key="days_a")
+    days_r = c1.number_input("Fenêtre récente (j)", 1, 30, 7, key="monitor_days_r")
+    days_a = c2.number_input("Fenêtre globale (j)", 7, 90, 30, key="monitordays_a")
 
     if st.button("🔄 Rafraîchir", key="refresh_monitor"):
         st.rerun()
