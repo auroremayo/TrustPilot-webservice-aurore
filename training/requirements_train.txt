@@ -11,8 +11,7 @@ joblib
 matplotlib
 seaborn
 tqdm
-dvc
-dvc[s3]
 fastapi
 bcrypt
 uvicorn
+boto3
