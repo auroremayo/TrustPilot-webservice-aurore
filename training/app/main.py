@@ -5,6 +5,7 @@ Point d'entrée FastAPI — assemble toutes les routes.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from .routes import auth, monitoring, train, health
 
