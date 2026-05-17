@@ -55,6 +55,27 @@ services:
         --backend-store-uri /mlflow/mlruns
         --default-artifact-root /mlflow/artifacts
 
+  # ── 4b. MLflow Webhook Worker (Le webhook qui pousse les modèles en PROD sur DagsHub) ────────
+  mlflow-webhook-worker:
+    image: python:3.10-slim
+    profiles:
+      - training
+    volumes:
+      # On injecte notre script directement dans une image python de base !
+      - ./mlflow_extensions:/app
+      # On partage le dossier mlflow pour que le script lise les artefacts rapidement
+      - ./mlflow:/mlflow 
+    working_dir: /app
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+    command: sh -c "pip install fastapi uvicorn boto3 mlflow && uvicorn webhook_handler:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      - mlflow
+
+  
   # ── 5. Training API ────────────────────────────────────────────────────────
   training-api:
     build:

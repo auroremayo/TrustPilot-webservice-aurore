@@ -22,20 +22,6 @@ _vectorizer = None
 def get_model():
     """Charge le modèle une seule fois (singleton)."""
     global _model, _vectorizer
-    if _model is None:
-        try:
-            # Pull DVC uniquement si les fichiers sont absents (pas en Docker avec volume)
-            if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
-                try:
-                    subprocess.run(["dvc", "pull", "models"], check=True)
-                except Exception as dvc_err:
-                    logger.warning("DVC pull impossible (normal en Docker) : %s", dvc_err)
-
-            _model      = joblib.load(MODEL_PATH)
-            _vectorizer = joblib.load(VECTORIZER_PATH)
-            logger.info("Modèle LightGBM et TF-IDF chargés avec succès.")
-        except Exception as e:
-            logger.error("Erreur lors du chargement du modèle : %s", e)
     return _model, _vectorizer
 
 
