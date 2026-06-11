@@ -48,6 +48,8 @@ services:
       - "5000:5000"
     volumes:
       - ./mlflow:/mlflow
+    environment:
+      - MLFLOW_ALLOW_FILE_STORE=true
     command: >
       mlflow server
         --host 0.0.0.0
@@ -55,6 +57,26 @@ services:
         --backend-store-uri /mlflow/mlruns
         --default-artifact-root /mlflow/artifacts
 
+  # ── 4b. MLflow Webhook Worker (Le webhook qui pousse les modèles en PROD sur DagsHub) ────────
+  mlflow-webhook-worker:
+    build:
+      context: ./mlflow_extensions
+      dockerfile: Dockerfile
+    profiles:
+      - training
+    volumes:
+      - ./mlflow_extensions:/app
+      - ./mlflow:/mlflow
+    working_dir: /app
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+    depends_on:
+      - mlflow
+
+  
   # ── 5. Training API ────────────────────────────────────────────────────────
   training-api:
     build:

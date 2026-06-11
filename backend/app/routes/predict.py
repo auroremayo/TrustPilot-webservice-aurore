@@ -195,3 +195,27 @@ def extract_text_csv(data: Base64, api_key: str = Depends(get_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors du traitement du CSV : {e}")
     
+@router.post("/reload_models")
+def reload_models():
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=os.environ.get('S3_ENDPOINT_URL'),
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_KEY')
+    )
+    
+    # 3. Envoi vers S3
+    # Le fichier sera nommé sur S3 selon son nom enregistré dans le Model Registry 
+    # Exemple : prod_models/vectorizer.pkl et prod_models/trustpilot_lgbm_model.pkl
+    s3_bucket = os.environ.get('S3_BUCKET_NAME')
+
+    # Téléchargement du vectoriseur et du modèle
+    s3_client.download_file(s3_bucket, 'prod_models/vectorizer.pkl', '/tmp/vectorizer.pkl')
+    s3_client.download_file(s3_bucket, 'prod_models/trustpilot_lgbm_model.pkl', '/tmp/model.pkl')
+    
+    global vectorizer, model
+    with open('/tmp/vectorizer.pkl', 'rb') as f:
+        vectorizer = pickle.load(f)
+    with open('/tmp/model.pkl', 'rb') as f:
+        model = pickle.load(f)
+    print("Pipeline NLP complet (Vectorizer + Model) chargé depuis S3 !")

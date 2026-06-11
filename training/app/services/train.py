@@ -300,12 +300,12 @@ def train(
         joblib.dump(tfidf, tfidf_path)
         logger.info("Modèles sauvegardés dans %s", MODELS_DIR)
 
-        subprocess.run(["dvc", "add", str(model_path)], check=True)
-        subprocess.run(["dvc", "add", str(tfidf_path)], check=True)
-        subprocess.run(["git", "add", "."], check=True)
-        subprocess.run(["git", "commit", "-m", f"Add trained models - run {run_id}"], check=True)
-        subprocess.run(["git", "push"], check=True)
-        subprocess.run(["dvc", "push"], check=True)
+        # subprocess.run(["dvc", "add", str(model_path)], check=True)
+        # subprocess.run(["dvc", "add", str(tfidf_path)], check=True)
+        # subprocess.run(["git", "add", "."], check=True)
+        # subprocess.run(["git", "commit", "-m", f"Add trained models - run {run_id}"], check=True)
+        # subprocess.run(["git", "push"], check=True)
+        # subprocess.run(["dvc", "push"], check=True)
 
         # Log des pkl comme artefacts MLflow également
         mlflow.log_artifact(str(model_path))

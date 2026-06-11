@@ -15,3 +15,4 @@ shap
 altair
 dvc
 dvc[s3]
+boto3

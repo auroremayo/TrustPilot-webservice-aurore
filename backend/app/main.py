@@ -2,6 +2,7 @@
 Point d'entrée FastAPI — assemble toutes les routes.
 """
 
+# import boto3
 import logging
 from contextlib import asynccontextmanager
 
@@ -30,6 +31,7 @@ app = FastAPI(
     version="4.1",
     lifespan=lifespan,
 )
+
 
 app.add_middleware(
     CORSMiddleware,
