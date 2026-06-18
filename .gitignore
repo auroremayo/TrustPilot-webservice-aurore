@@ -34,3 +34,6 @@ env/
 Thumbs.db
 /data-file.bin
 /models
+
+# DAG logs
+airflow/logs/2026-06-18/native_dags/example_dags/*

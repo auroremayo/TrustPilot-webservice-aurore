@@ -2,14 +2,13 @@
 Point d'entrée FastAPI — assemble toutes les routes.
 """
 
-# import boto3
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import auth, predict, monitoring
+from .routes import auth, predict, monitoring, reload
 from .services.ml_service import get_model
 
 logging.basicConfig(
@@ -28,10 +27,9 @@ async def lifespan(application: FastAPI):
 app = FastAPI(
     title="Trustpilot Sentiment API",
     description="API sécurisée · prédiction de sentiment · monitoring",
-    version="4.1",
+    version="4.2",
     lifespan=lifespan,
 )
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -45,11 +43,12 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(predict.router)
 app.include_router(monitoring.router)
+app.include_router(reload.router)     # ← rechargement à chaud du modèle (Airflow)
 
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"message": "Trustpilot Sentiment API v4.1 — /docs pour tester."}
+    return {"message": "Trustpilot Sentiment API v4.2 — /docs pour tester."}
 
 
 @app.get("/health", tags=["Health"])
@@ -60,5 +59,5 @@ def health():
     return {
         "status":       "ok" if model_loaded else "degraded",
         "model_loaded": model_loaded,
-        "version":      "4.1",
+        "version":      "4.2",
     }
