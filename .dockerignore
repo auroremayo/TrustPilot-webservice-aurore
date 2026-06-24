@@ -1,0 +1,14 @@
+# Ignorer le dossier Git (trop lourd)
+.git/
+
+# Ignorer les environnements virtuels locaux
+.venv/
+venv/
+env/
+
+# Ignorer le cache Python
+__pycache__/
+*.pyc
+
+# NE PAS IGNORER .dvc et dvc.lock (DVC en a besoin !)
+# NE PAS IGNORER backend/requirements.txt

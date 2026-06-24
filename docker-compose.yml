@@ -29,8 +29,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       args:
-        GIT_USER: ${GIT_USER}
-        GIT_TOKEN: ${GIT_TOKEN}
+        DAGSHUB_ACCESS_KEY: ${DAGSHUB_ACCESS_KEY}
+        DAGSHUB_SECRET_KEY: ${DAGSHUB_SECRET_KEY}
     expose:
       - "80"
     volumes:
@@ -93,8 +93,8 @@ services:
       - ./mlruns:/app/mlruns
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
-      - GIT_USER=${GIT_USER}
-      - GIT_TOKEN=${GIT_TOKEN}
+      - DAGSHUB_ACCESS_KEY=${DAGSHUB_ACCESS_KEY}
+      - DAGSHUB_SECRET_KEY=${DAGSHUB_SECRET_KEY}
     depends_on:
       - mlflow
 
