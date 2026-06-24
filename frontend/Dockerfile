@@ -4,8 +4,9 @@ RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY frontend/requirements.txt ./frontend/requirements.txt
+RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir -r frontend/requirements.txt
 
 # Télécharge les ressources NLTK au build (évite le téléchargement à chaque démarrage)
 RUN python -c "\

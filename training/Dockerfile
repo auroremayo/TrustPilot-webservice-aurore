@@ -5,17 +5,19 @@ WORKDIR /app
 
 # 1. Copier d'abord le fichier de dépendances
 # Suppression du "/" devant training
-COPY training/requirements_train.txt .
+COPY training/requirements.txt ./training/requirements.txt
 
 # 2. Installer les dépendances
 # On peut grouper les pip install pour réduire le nombre de couches
-RUN pip install --no-cache-dir dvc[s3] && \
-    pip install --no-cache-dir -r requirements_train.txt
+RUN pip install --no-cache-dir uv
+RUN uv pip install --system --no-cache-dir -r training/requirements.txt
 
 # 3. Copier les dossiers de code
 # Suppression des "/" devant les sources
 COPY common ./common
 COPY training/app ./training/app
+
+RUN git init
 
 # Lancer l'API avec Uvicorn
 CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
