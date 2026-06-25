@@ -6,3 +6,7 @@ joblib
 referencing
 nltk
 dvc[s3]
+uvicorn
+lightgbm
+scikit-learn==1.8.0
+boto3

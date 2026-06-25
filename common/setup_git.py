@@ -7,4 +7,5 @@ def setup_git_auth():
 
     repo_url = f"https://{user}:{token}@github.com/auroremayo/TrustPilot-webservice-aurore.git"
 
+    subprocess.run(["git", "remote", "add", "origin", repo_url], capture_output=True)
     subprocess.run(["git", "remote", "set-url", "origin", repo_url])

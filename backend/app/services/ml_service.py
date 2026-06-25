@@ -26,7 +26,7 @@ def _pull_models_from_s3() -> bool:
     try:
         logger.info("Pull DVC depuis DagsHub S3...")
         result = subprocess.run(
-            ["dvc", "pull", DVC_MODEL_PATH, DVC_VECTORIZER_PATH],
+            ["dvc", "pull", DVC_MODEL_PATH, DVC_VECTORIZER_PATH, "--force"],
             check=True,
             capture_output=True,
             text=True,

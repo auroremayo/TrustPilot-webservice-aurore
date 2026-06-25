@@ -12,10 +12,11 @@ COPY training/requirements.txt ./training/requirements.txt
 RUN pip install --no-cache-dir uv
 RUN uv pip install --system --no-cache-dir -r training/requirements.txt
 
-# 3. Copier les dossiers de code
-# Suppression des "/" devant les sources
+# 3. Copier les dossiers de code et configuration DVC
 COPY common ./common
 COPY training/app ./training/app
+COPY .dvc ./.dvc
+COPY .dvcignore ./.dvcignore
 
 RUN git init
 

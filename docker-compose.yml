@@ -71,6 +71,8 @@ services:
       - "5000:5000"
     volumes:
       - ./mlflow:/mlflow
+    environment:
+      - MLFLOW_ALLOW_FILE_STORE=true
     command: >
       mlflow server
         --host 0.0.0.0
