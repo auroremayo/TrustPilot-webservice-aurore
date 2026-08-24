@@ -1,0 +1,10 @@
+apiVersion: 1
+
+providers:
+  - name: SentimentAI
+    folder: SentimentAI
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
