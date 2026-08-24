@@ -1,5 +1,6 @@
-[core]
+['core']
     remote = origin
+
 ['remote "origin"']
     url = s3://dvc
     endpointurl = https://dagshub.com/auroremayo/TrustPilot-webservice-aurore.s3

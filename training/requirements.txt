@@ -1,0 +1,15 @@
+pandas
+numpy
+scikit-learn==1.8.0
+lightgbm
+nltk
+mlflow
+joblib
+matplotlib
+seaborn
+tqdm
+fastapi
+bcrypt
+uvicorn
+boto3
+dvc[s3]

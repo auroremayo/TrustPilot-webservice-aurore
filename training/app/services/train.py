@@ -286,6 +286,7 @@ def train(
             sk_model=model,
             artifact_path="lgbm_model",
             registered_model_name="SentimentAI-LightGBM",
+            serialization_format="pickle",
         )
 
         run_id = mlflow.active_run().info.run_id
