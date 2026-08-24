@@ -4,3 +4,8 @@ requests
 plotly
 numpy
 nltk
+shap
+altair
+joblib
+lightgbm
+scikit-learn==1.8.0
