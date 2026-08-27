@@ -6,8 +6,7 @@ WORKDIR /app
 
 COPY frontend/requirements.txt ./frontend/requirements.txt
 RUN pip install --no-cache-dir uv
-RUN pip install --no-cache-dir -r frontend/requirements.txt
-
+RUN uv pip install --system --no-cache-dir -r frontend/requirements.txt
 # Télécharge les ressources NLTK au build (évite le téléchargement à chaque démarrage)
 RUN python -c "\
 import nltk; \

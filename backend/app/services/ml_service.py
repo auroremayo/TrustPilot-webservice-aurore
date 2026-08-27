@@ -19,14 +19,10 @@ _vectorizer = None
 
 
 def _pull_models_from_s3() -> bool:
-    """
-    Télécharge les modèles depuis DagsHub S3 via DVC.
-    Retourne True si le pull a réussi, False sinon.
-    """
     try:
         logger.info("Pull DVC depuis DagsHub S3...")
         result = subprocess.run(
-            ["dvc", "pull", DVC_MODEL_PATH, DVC_VECTORIZER_PATH, "--force"],
+            ["dvc", "pull", "models.dvc", "--force"],  # <── pull direct via models.dvc
             check=True,
             capture_output=True,
             text=True,
