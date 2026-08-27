@@ -233,7 +233,7 @@ def train(
 
     with mlflow.start_run(run_name=f"lgbm_{datetime.now():%Y%m%d_%H%M%S}") as run:
         run_id = run.info.run_id
-        artifacts_dir = BASE_DIR / "training_artifacts" / run_id
+        artifacts_dir = BASE_DIR / "training" / "artifacts" / run_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Log des hyperparamètres
