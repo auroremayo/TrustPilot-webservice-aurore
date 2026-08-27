@@ -40,7 +40,7 @@ INTERNAL_SECRET = "airflow-internal-secret"  # doit correspondre à reload.py et
 
 
 def get_admin_headers() -> dict:
-    """Lit le token admin depuis les Variables Airflow (jamais en dur dans le code)."""
+    """Lit le token admin depuis les Variables Airflow. """
     token = Variable.get("sentimentai_admin_key", default_var="")
     return {"X-API-Key": token} if token else {}
 
@@ -115,7 +115,7 @@ def trigger_training(**context):
 
     # 429 = rate limit Nginx atteint
     if resp.status_code == 429:
-        raise Exception("Rate limit Nginx atteint sur /train/train — réessaie dans 1 minute.")
+        raise Exception("Rate limit Nginx atteint sur /train/train — réessayer dans 1 minute.")
 
     resp.raise_for_status()
     data = resp.json()
@@ -138,10 +138,12 @@ def check_training_status(**context) -> bool:
     - Si RUNNING / PENDING : retourne False (le sensor libère le worker en mode reschedule).
     """
     ti = context["ti"]
+    # 1. Airflow récupère le job_id stocké
     job_id = ti.xcom_pull(task_ids="trigger_training", key="job_id")
     if not job_id:
         raise AirflowException("Job ID introuvable dans XCom depuis la tâche trigger_training.")
-
+    
+    # 2. Airflow interroge la route /status/{job_id} de FastAPI
     resp = requests.get(
         f"{NGINX_URL}/train/status/{job_id}",
         timeout=10,
@@ -154,11 +156,14 @@ def check_training_status(**context) -> bool:
     job_status = job_info.get("status")
     duration = job_info.get("duration_seconds")
 
-    print(f"📊 [Sensor] Statut du job {job_id} : {job_status} (durée : {duration}s)")
-
+    print(f"[Sensor] Statut du job {job_id} : {job_status} (durée : {duration}s)")
+    
+    # 3. Dès que FastAPI renvoie "SUCCESS", Airflow extrait les métriques du résultat :
     if job_status == "SUCCESS":
         result = job_info.get("result", {})
-        print(f"🎉 Entraînement terminé avec succès : {result}")
+        print(f"Entraînement terminé avec succès : {result}")
+
+        # Airflow enregistre les résultats renvoyés par train(...) pour la Quality Gate
         ti.xcom_push(key="run_id",    value=result.get("run_id"))
         ti.xcom_push(key="accuracy",  value=result.get("accuracy"))
         ti.xcom_push(key="f1_score",  value=result.get("f1_score"))
@@ -166,10 +171,10 @@ def check_training_status(**context) -> bool:
 
     elif job_status == "FAILED":
         error = job_info.get("error", "Erreur inconnue lors du réentraînement")
-        raise AirflowException(f"❌ Échec de l'entraînement (Job {job_id}) : {error}")
+        raise AirflowException(f"Échec de l'entraînement (Job {job_id}) : {error}")
 
     elif job_status in ["PENDING", "RUNNING"]:
-        print(f"⏳ Entraînement toujours en cours ({job_status}). Reprogrammation du sondage...")
+        print(f"Entraînement toujours en cours ({job_status}). Reprogrammation du sondage...")
         return False
 
     else:

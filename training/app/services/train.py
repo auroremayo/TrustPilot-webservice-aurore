@@ -71,7 +71,7 @@ def push_models_to_s3(base_dir: Path, run_id: str):
     et pousse le fichier de pointeur models.dvc vers GitHub.
     """
     try:
-        logger.info("📦 [DVC] Indexation des modèles (dvc add)...")
+        logger.info("[DVC] Indexation des modèles (dvc add)...")
         subprocess.run(
             ["dvc", "add", "models"],
             cwd=str(base_dir),
@@ -79,7 +79,7 @@ def push_models_to_s3(base_dir: Path, run_id: str):
             capture_output=True,
             text=True
         )
-        logger.info("☁️ [DVC] Téléversement des modèles vers S3/DagsHub (dvc push)...")
+        logger.info("[DVC] Téléversement des modèles vers S3/DagsHub (dvc push)...")
         result = subprocess.run(
             ["dvc", "push", "models.dvc"],
             cwd=str(base_dir),
@@ -87,10 +87,10 @@ def push_models_to_s3(base_dir: Path, run_id: str):
             capture_output=True,
             text=True
         )
-        logger.info("✅ [DVC] Modèles poussés sur S3 avec succès : %s", result.stdout.strip())
+        logger.info("[DVC] Modèles poussés sur S3 avec succès : %s", result.stdout.strip())
         # Versionnage Git du pointeur models.dvc (si Git est configuré)
         try:
-            logger.info("🐙 [Git] Enregistrement de models.dvc sur Git...")
+            logger.info("[Git] Enregistrement de models.dvc sur Git...")
             subprocess.run(["git", "add", "models.dvc", ".gitignore"], cwd=str(base_dir), check=True)
             subprocess.run(
                 ["git", "commit", "-m", f"chore(models): retrained model run {run_id}"],
@@ -99,11 +99,11 @@ def push_models_to_s3(base_dir: Path, run_id: str):
                 capture_output=True
             )
             subprocess.run(["git", "push", "origin", "HEAD"], cwd=str(base_dir), check=True)
-            logger.info("✅ [Git] models.dvc poussé sur GitHub.")
+            logger.info("[Git] models.dvc poussé sur GitHub.")
         except subprocess.CalledProcessError as git_err:
-            logger.warning("⚠️ [Git] Push Git non effectué (DVC push a tout de même réussi) : %s", git_err)
+            logger.warning("[Git] Push Git non effectué (DVC push a tout de même réussi) : %s", git_err)
     except subprocess.CalledProcessError as e:
-        logger.error("❌ Échec lors du dvc push : %s", e.stderr or e.stdout)
+        logger.error("Échec lors du dvc push : %s", e.stderr or e.stdout)
         raise RuntimeError(f"Erreur dvc push vers S3 : {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -231,7 +231,10 @@ def train(
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(EXPERIMENT)
 
-    with mlflow.start_run(run_name=f"lgbm_{datetime.now():%Y%m%d_%H%M%S}"):
+    with mlflow.start_run(run_name=f"lgbm_{datetime.now():%Y%m%d_%H%M%S}") as run:
+        run_id = run.info.run_id
+        artifacts_dir = BASE_DIR / "training_artifacts" / run_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Log des hyperparamètres
         mlflow.log_params({
@@ -263,6 +266,8 @@ def train(
 
         acc = accuracy_score(y_test, y_pred)
         f1  = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+        report = classification_report(
+            y_test, y_pred, labels=[0, 1, 2], target_names=CLASS_NAMES, zero_division=0, output_dict=True
         )
         logger.info("Accuracy : %.4f", acc)
         logger.info("F1-Score (weighted) : %.4f", f1)
@@ -319,6 +324,7 @@ def train(
             artifact_path="lgbm_model",
             registered_model_name="SentimentAI-LightGBM",
             serialization_format="pickle",
+        )
 
         logger.info("Run MLflow : %s", run_id)
 
@@ -347,9 +353,25 @@ def train(
             acc, f1, run_id,
         )
 
+        return {
+            "run_id": run_id,
+            "accuracy": round(float(acc), 4),
+            "f1_score": round(float(f1), 4),
+        }
+
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 5. CLI & MAIN
+# ══════════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Entraînement LightGBM SentimentAI")
+    parser.add_argument("--data",                type=str,   required=True)
+    parser.add_argument("--dataset-name",        type=str,   default="df_merged_clean_sample2.csv")
+    parser.add_argument("--max-features",        type=int,   default=20000)
+    parser.add_argument("--ngram-max",           type=int,   default=2)
     parser.add_argument("--learning-rate",       type=float, default=0.05)
+    parser.add_argument("--num-leaves",          type=int,   default=64)
     parser.add_argument("--n-estimators",        type=int,   default=1000)
     parser.add_argument("--colsample-bytree",    type=float, default=0.8)
     parser.add_argument("--subsample",           type=float, default=0.8)
@@ -359,6 +381,7 @@ def train(
 
     train(
         csv_path              = args.data,
+        dataset_name          = args.dataset_name,
         max_features          = args.max_features,
         ngram_max             = args.ngram_max,
         learning_rate         = args.learning_rate,

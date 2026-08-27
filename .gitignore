@@ -36,4 +36,5 @@ Thumbs.db
 /models
 
 # DAG logs
-airflow/logs/2026-06-18/native_dags/example_dags/*
+airflow/logs/2026-06-18/native_dags/example_dags/*airflow/logs/
+training_artifacts/
