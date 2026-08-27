@@ -17,6 +17,12 @@ from ..core.config import (
     MIN_CONFIDENCE,
     MAX_LOG_LINES,
 )
+from .metrics_service import (
+    PREDICTIONS_COUNTER,
+    CONFIDENCE_HISTOGRAM,
+    FEEDBACK_COUNTER,
+    update_drift_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +80,9 @@ def log_prediction(
     with open(PREDICTIONS_LOG, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    PREDICTIONS_COUNTER.labels(sentiment=prediction).inc()
+    CONFIDENCE_HISTOGRAM.observe(confidence)
+
     _rotate_log_if_needed()
 
 
@@ -100,6 +109,7 @@ def update_feedback(timestamp: str, feedback: str) -> bool:
     if updated:
         with open(PREDICTIONS_LOG, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
+        FEEDBACK_COUNTER.labels(feedback_type=feedback).inc()
     return updated
 
 

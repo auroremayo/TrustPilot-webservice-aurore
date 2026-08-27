@@ -8,9 +8,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from .routes import auth, predict, monitoring, reload
 from .services.ml_service import get_model
+from .services.metrics_service import MODEL_LOADED_GAUGE
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +23,8 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Pré-charge le modèle au démarrage et libère les ressources à l'arrêt."""
-    get_model()
+    model = get_model()
+    MODEL_LOADED_GAUGE.set(1 if model[0] is not None else 0)
     yield
 
 
@@ -40,6 +43,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics/prometheus")
 
 # Routes
 app.include_router(auth.router)
