@@ -263,7 +263,6 @@ def train(
 
         acc = accuracy_score(y_test, y_pred)
         f1  = f1_score(y_test, y_pred, average="weighted", zero_division=0)
-            y_test, y_pred, labels=[0, 1, 2], target_names=CLASS_NAMES, output_dict=True, zero_division=0
         )
         logger.info("Accuracy : %.4f", acc)
         logger.info("F1-Score (weighted) : %.4f", f1)
@@ -321,7 +320,6 @@ def train(
             registered_model_name="SentimentAI-LightGBM",
             serialization_format="pickle",
 
-        run_id = mlflow.active_run().info.run_id
         logger.info("Run MLflow : %s", run_id)
 
         # ── Sauvegarde des .pkl dans models/ ────────────────────────────────
@@ -351,16 +349,7 @@ def train(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAIN
-# ══════════════════════════════════════════════════════════════════════════════
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Entraînement LightGBM + tracking MLflow")
-    parser.add_argument("--data",                required=True,          help="Chemin vers df_merged_clean.csv")
-    parser.add_argument("--max-features",        type=int,   default=20_000)
-    parser.add_argument("--ngram-max",           type=int,   default=2)
     parser.add_argument("--learning-rate",       type=float, default=0.05)
-    parser.add_argument("--num-leaves",          type=int,   default=64)
     parser.add_argument("--n-estimators",        type=int,   default=1000)
     parser.add_argument("--colsample-bytree",    type=float, default=0.8)
     parser.add_argument("--subsample",           type=float, default=0.8)
