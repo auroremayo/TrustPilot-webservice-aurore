@@ -1,4 +1,5 @@
 fastapi
+shap
 bcrypt
 pandas
 pydantic
@@ -10,3 +11,5 @@ uvicorn
 lightgbm
 scikit-learn==1.8.0
 boto3
+prometheus-fastapi-instrumentator
+prometheus-client

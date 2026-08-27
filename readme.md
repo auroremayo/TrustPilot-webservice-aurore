@@ -27,7 +27,9 @@ Ce n'est pas un simple notebook Data Science — c'est une **architecture MLOps 
 11. [Frontend — Onglets](#-frontend--onglets)
 12. [Configuration](#-configuration)
 13. [Réentraîner le modèle & MLflow](#-réentraîner-le-modèle)
-14. [Résolution de problèmes](#-résolution-de-problèmes)
+14. [Airflow — Pipeline de réentraînement automatique](#-airflow--pipeline-de-réentraînement-automatique)
+15. [Grafana & Prometheus — Monitoring](#-grafana--prometheus--monitoring)
+16. [Résolution de problèmes](#-résolution-de-problèmes)
 15. [Technologies](#-technologies)
 16. [Licence](#-licence)
 
@@ -245,6 +247,10 @@ docker compose up --build
 | Frontend Streamlit | http://localhost:8501 | Interface graphique principale |
 | API via Nginx | http://localhost:8080 | Point d'entrée sécurisé de l'API |
 | API directe (Swagger) | http://localhost:8000/docs | Documentation interactive, bypass Nginx |
+| Airflow UI | http://localhost:8081 | Orchestration du pipeline de réentraînement |
+| Flower (Celery) | http://localhost:5556 | Monitoring des workers Airflow |
+| Grafana | http://localhost:3000 | Dashboard métriques (admin/admin) |
+| Prometheus | http://localhost:9090 | Collecte des métriques backend |
 
 > **Important :** En production, ne pas exposer le port `8000` (FastAPI direct). Tout doit passer par Nginx (`8080`).
 
@@ -694,6 +700,95 @@ docker compose restart api frontend
 ```
 
 > Le modèle est chargé en mémoire au démarrage (singleton dans `ml_service.py`). Un simple restart suffit — pas besoin de rebuild.
+
+---
+
+## ✈️ Airflow — Pipeline de réentraînement automatique
+
+Airflow orchestre le réentraînement du modèle chaque nuit à 2h si un drift KL ≥ 0.30 est détecté.
+
+### Démarrage
+
+```bash
+# Initialiser la base Airflow (à faire une seule fois)
+docker compose run --rm airflow-init
+
+# Démarrer tous les services (inclut Airflow)
+docker compose up --build
+```
+
+### Accès
+
+| Service | URL | Description |
+|---|---|---|
+| Airflow UI | http://localhost:8081 | Interface de gestion des DAGs |
+| Flower (Celery) | http://localhost:5556 | Monitoring des workers Celery |
+
+Identifiants par défaut : `airflow` / `airflow` (modifiables via `.env`).
+
+### Variables Airflow obligatoires
+
+Le DAG `retrain_sentimentai` ne démarrera pas sans ces deux variables. Les créer dans **Admin > Variables** :
+
+| Clé | Valeur | Description |
+|---|---|---|
+| `sentimentai_admin_key` | token API d'un compte admin | Utilisé pour appeler `/monitor/stats` |
+| `sentimentai_training_wait_minutes` | `20` (ou `5` pour un petit dataset) | Délai d'attente de la fin d'entraînement |
+
+Pour obtenir un token admin :
+```bash
+curl -X POST http://localhost:8080/token_API \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "votre_mdp"}'
+# → copier le champ "access_token" dans la Variable Airflow
+```
+
+### Étapes du DAG `retrain_sentimentai`
+
+```
+check_drift ──▶ trigger_training ──▶ wait_for_training ──▶ reload_model ──▶ verify_backend
+     │
+     └─ Court-circuite si KL < 0.30 ou pas de données
+```
+
+1. **check_drift** : interroge `/monitor/stats` — court-circuite si drift normal
+2. **trigger_training** : POST `/train/train` via Nginx (lance l'entraînement en arrière-plan)
+3. **wait_for_training** : attend `sentimentai_training_wait_minutes` minutes
+4. **reload_model** : POST `/internal/reload-model` — backend recharge les `.pkl` en mémoire
+5. **verify_backend** : GET `/health` — vérifie que le backend est sain
+
+### Secret interne
+
+`INTERNAL_SECRET` dans `.env` doit correspondre à la constante `INTERNAL_SECRET` dans `airflow/dags/retrain_dag.py` (valeur par défaut : `airflow-internal-secret`). Changer les deux si tu modifies l'un.
+
+---
+
+## 📊 Grafana & Prometheus — Monitoring
+
+Grafana affiche les métriques temps réel du backend FastAPI (modèle chargé, prédictions, drift KL, confiance).
+
+### Accès
+
+| Service | URL | Identifiants |
+|---|---|---|
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
+
+### Ce qui est affiché
+
+Le dashboard **SentimentAI** (chargé automatiquement) contient :
+- Statut du modèle ML (chargé / non chargé)
+- Nombre total de prédictions
+- KL divergence et niveau de drift
+- Confiance moyenne des prédictions récentes
+- Histogramme des latences de prédiction
+
+### Connexion Airflow → Grafana (à venir)
+
+Pour que Grafana affiche aussi les métriques Airflow (runs de DAGs, statuts des tâches), il faudra ajouter :
+1. Un service `statsd-exporter` dans `docker-compose.yml`
+2. Les variables `AIRFLOW__METRICS__STATSD_*` dans `x-airflow-common`
+3. Un job `airflow` dans `prometheus/prometheus.yml`
 
 ---
 

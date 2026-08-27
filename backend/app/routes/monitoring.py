@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Header, Depends
 from ..schemas.models import FeedbackPayload
 from ..services import monitor_service
 from ..services.users import get_users
+from ..services.metrics_service import update_drift_metrics, ACTIVE_USERS_GAUGE
 from ..core.security import get_username_from_key, require_admin
 from ..core.config import DAILY_QUOTA
 
@@ -81,7 +82,8 @@ def monitoring_stats(
     _admin: str = Depends(require_admin),
 ):
     """Statistiques de drift et de monitoring (admin uniquement)."""
-    return monitor_service.get_monitoring_stats(
-        days_recent=days_recent, days_all=days_all
-    )
+    stats = monitor_service.get_monitoring_stats(days_recent=days_recent, days_all=days_all)
+    update_drift_metrics(stats)
+    ACTIVE_USERS_GAUGE.set(len(get_users()))
+    return stats
 
