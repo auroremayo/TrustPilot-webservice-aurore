@@ -47,6 +47,7 @@ def _run_training_job(job_id: str, train_params: dict):
         })
 
 
+@router.post("/train")
 @router.post("/train/train")
 def trigger_training(
     train_request: TrainRequest,
@@ -92,6 +93,7 @@ def trigger_training(
         raise HTTPException(status_code=500, detail="Erreur lors du lancement de l'entraînement du modèle.")
 
 
+@router.get("/status/{job_id}")
 @router.get("/train/status/{job_id}")
 def get_training_status(job_id: str):
     """Retourne l'état actuel du job sondé par le PythonSensor d'Airflow."""
@@ -100,12 +102,14 @@ def get_training_status(job_id: str):
     return _jobs[job_id]
 
 
+@router.get("/jobs")
 @router.get("/train/jobs")
 def list_jobs():
     """Liste tous les jobs d'entraînement récents."""
     return list(_jobs.values())
 
 
+@router.post("/collect_data")
 @router.post("/train/collect_data")
 def collect_data():
     return {"message": "Route de collecte de données - à implémenter selon les besoins."}
