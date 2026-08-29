@@ -26,6 +26,7 @@ URLs — tout passe par Nginx (http://nginx:80) :
 """
 
 from datetime import datetime, timedelta
+from typing import Optional
 import requests
 
 from airflow import DAG
@@ -36,7 +37,9 @@ from airflow.exceptions import AirflowException
 
 # ── URLs — tout passe par Nginx ───────────────────────────────────────────────
 NGINX_URL       = "http://nginx:80"
-INTERNAL_SECRET = "airflow-internal-secret"  # doit correspondre à reload.py et .env
+INTERNAL_SECRET = "airflow-internal-secret"
+PROMETHEUS_URL     = "http://prometheus:9090"
+DRIFT_LEVEL_NAMES  = {0: "normal", 1: "warning", 2: "critical"}
 
 
 def get_admin_headers() -> dict:
@@ -45,46 +48,116 @@ def get_admin_headers() -> dict:
     return {"X-API-Key": token} if token else {}
 
 
+def query_prometheus(query: str) -> Optional[float]:
+    """
+    Interroge l'API standard de Prometheus : GET /api/v1/query?query={query}
+    Extrait la valeur float depuis data.result[0].value[1].
+    Retourne None en cas d'erreur ou si la métrique est absente.
+    """
+    base_url = Variable.get("sentimentai_prometheus_url", default_var=PROMETHEUS_URL)
+    try:
+        resp = requests.get(
+            f"{base_url}/api/v1/query",
+            params={"query": query},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("status") == "success":
+            results = data.get("data", {}).get("result", [])
+            if results:
+                val = results[0].get("value", [None, None])[1]
+                if val is not None:
+                    return float(val)
+    except Exception as e:
+        print(f"Requête Prometheus échouée pour '{query}': {e}")
+    return None
+
 # ── Tâches ────────────────────────────────────────────────────────────────────
 
 def check_drift(**context) -> bool:
     """
-    Interroge /monitor/stats pour décider si un réentraînement est nécessaire.
-    - Retourne False si pas de données → court-circuite le DAG
-    - Retourne False si drift normal → court-circuite le DAG
-    - Retourne True si needs_retraining=True → continue le DAG
+    Interroge Prometheus pour décider si un réentraînement est nécessaire.
+    - Si métriques Prometheus disponibles :
+        - needs_retraining == 1.0 (ou drift_level == 2.0) -> return True (continue vers trigger_training)
+        - needs_retraining == 0.0 -> return False (court-circuite le DAG proprement)
+    - Si Prometheus indisponible :
+        - Fallback vers /monitor/stats via Nginx
+    - Si aucune donnée -> return False
     """
-    resp = requests.get(
-        f"{NGINX_URL}/monitor/stats",
-        headers=get_admin_headers(),
-        timeout=10,
-    )
-    resp.raise_for_status()
-    stats = resp.json()
+    ti = context["ti"]
 
-    # Pas encore assez de données pour calculer le drift
-    if stats.get("status") == "no_data":
-        print("Aucune donnée de monitoring disponible — pas de réentraînement.")
+    # Interrogation des jauges Prometheus
+    needs_retrain    = query_prometheus("sentimentai_needs_retraining")
+    drift_level_val  = query_prometheus("sentimentai_drift_level")
+    kl_val           = query_prometheus("sentimentai_kl_divergence")
+    avg_conf_val     = query_prometheus("sentimentai_avg_confidence")
+    recent_preds_val = query_prometheus("sentimentai_recent_predictions")
+
+    # Si Prometheus répond correctement, on utilise ses métriques
+    if needs_retrain is not None:
+        drift_level_name = DRIFT_LEVEL_NAMES.get(int(drift_level_val) if drift_level_val is not None else 0, "normal")
+        kl               = kl_val if kl_val is not None else 0.0
+        avg_conf         = avg_conf_val if avg_conf_val is not None else 0.0
+        recent_preds     = int(recent_preds_val) if recent_preds_val is not None else 0
+
+        print(
+            f"[Prometheus] Métriques récupérées :\n"
+            f"  • Drift level          : {drift_level_name} ({drift_level_val})\n"
+            f"  • KL divergence        : {kl:.4f}\n"
+            f"  • Confiance moy.       : {avg_conf:.2%}\n"
+            f"  • Prédictions récentes : {recent_preds}\n"
+            f"  • Réentraînement       : {bool(needs_retrain)}"
+        )
+
+        # Enregistrement dans XCom
+        ti.xcom_push(key="drift_level",        value=drift_level_name)
+        ti.xcom_push(key="kl_divergence",      value=kl)
+        ti.xcom_push(key="avg_confidence",     value=avg_conf)
+        ti.xcom_push(key="recent_predictions", value=recent_preds)
+
+        return bool(needs_retrain)
+
+    # Si Prometheus indisponible, fallback vers /monitor/stats
+    print("Prometheus indisponible ou sans données — Bascule (fallback) vers /monitor/stats...")
+    try:
+        resp = requests.get(
+            f"{NGINX_URL}/monitor/stats",
+            headers=get_admin_headers(),
+            timeout=10,
+        )
+        resp.raise_for_status()
+        stats = resp.json()
+
+        if stats.get("status") == "no_data":
+            print("Aucune donnée de monitoring disponible — pas de réentraînement.")
+            return False
+
+        drift_level   = stats.get("drift_level", "normal")
+        needs_retrain = stats.get("needs_retraining", False)
+        kl            = stats.get("kl_divergence", 0.0)
+        avg_conf      = stats.get("avg_confidence_recent", 0.0)
+        recent_preds  = stats.get("recent_predictions", 0)
+
+        print(
+            f"[Fallback Backend] Statistiques récupérées :\n"
+            f"  • Drift level          : {drift_level}\n"
+            f"  • KL divergence        : {kl:.4f}\n"
+            f"  • Confiance moy.       : {avg_conf:.2%}\n"
+            f"  • Prédictions récentes : {recent_preds}\n"
+            f"  • Réentraînement       : {needs_retrain}"
+        )
+
+        ti.xcom_push(key="drift_level",        value=drift_level)
+        ti.xcom_push(key="kl_divergence",      value=kl)
+        ti.xcom_push(key="avg_confidence",     value=avg_conf)
+        ti.xcom_push(key="recent_predictions", value=recent_preds)
+
+        return bool(needs_retrain)
+
+    except Exception as e:
+        print(f"Échec du fallback backend également : {e}")
         return False
-
-    drift_level   = stats.get("drift_level", "normal")
-    needs_retrain = stats.get("needs_retraining", False)
-    kl            = stats.get("kl_divergence", 0)
-    avg_conf      = stats.get("avg_confidence_recent", 0)
-
-    print(
-        f"Drift level     : {drift_level}\n"
-        f"KL divergence   : {kl:.4f}\n"
-        f"Confiance moy.  : {avg_conf:.2%}\n"
-        f"Réentraînement  : {needs_retrain}"
-    )
-
-    # Pousse les infos dans XCom pour traçabilité
-    context["ti"].xcom_push(key="drift_level",    value=drift_level)
-    context["ti"].xcom_push(key="kl_divergence",  value=kl)
-    context["ti"].xcom_push(key="avg_confidence", value=avg_conf)
-
-    return bool(needs_retrain)
 
 
 def trigger_training(**context):
@@ -127,7 +200,7 @@ def trigger_training(**context):
 
     # Enregistre le job_id dans XCom pour le Sensor
     context["ti"].xcom_push(key="job_id", value=job_id)
-    print(f"✅ Job d'entraînement lancé avec succès. Job ID: {job_id}")
+    print(f"Job d'entraînement lancé avec succès. Job ID: {job_id}")
 
 
 def check_training_status(**context) -> bool:

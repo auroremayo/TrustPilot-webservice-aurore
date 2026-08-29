@@ -83,6 +83,13 @@ def log_prediction(
     PREDICTIONS_COUNTER.labels(sentiment=prediction).inc()
     CONFIDENCE_HISTOGRAM.observe(confidence)
 
+    # Actualisation des jauges de drift dans Prometheus à chaque nouvelle prédiction
+    try:
+        stats = get_monitoring_stats()
+        update_drift_metrics(stats)
+    except Exception as e:
+        logger.warning("Échec actualisation métriques drift: %s", e)
+
     _rotate_log_if_needed()
 
 
