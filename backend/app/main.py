@@ -2,6 +2,7 @@
 Point d'entrée FastAPI — assemble toutes les routes.
 """
 
+import boto3
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,7 +12,9 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from .routes import auth, predict, monitoring, reload
 from .services.ml_service import get_model
-from .services.metrics_service import MODEL_LOADED_GAUGE
+from .services.metrics_service import MODEL_LOADED_GAUGE, update_drift_metrics, ACTIVE_USERS_GAUGE
+from .services.monitor_service import get_monitoring_stats
+from .services.users import get_users
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,9 +24,21 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """Pré-charge le modèle au démarrage et libère les ressources à l'arrêt."""
+    """Pré-charge le modèle au démarrage et initialise les métriques Prometheus."""
+    
+    # 1. Chargement du modèle ML
     model = get_model()
     MODEL_LOADED_GAUGE.set(1 if model[0] is not None else 0)
+    
+    # 2. Initialisation des métriques de drift et d'utilisateurs
+    try:       
+        stats = get_monitoring_stats()
+        update_drift_metrics(stats)
+        ACTIVE_USERS_GAUGE.set(len(get_users()))
+        logging.getLogger(__name__).info("Métriques Prometheus initialisées avec succès.")
+    except Exception as e:
+        logging.getLogger(__name__).warning("Erreur initialisation métriques Prometheus: %s", e)
+        
     yield
 
 
@@ -33,6 +48,7 @@ app = FastAPI(
     version="4.2",
     lifespan=lifespan,
 )
+
 
 app.add_middleware(
     CORSMiddleware,

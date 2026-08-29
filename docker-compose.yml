@@ -39,6 +39,7 @@ services:
       - ./data/users.json:/app/data/users.json
       - ./data/predictions_log.jsonl:/app/data/predictions_log.jsonl
       - ./models:/app/models
+      - ./models.dvc:/app/models.dvc
 
   # ── 2. Reverse proxy Nginx ───────────────────────────────────────────────────
   nginx:
@@ -79,7 +80,9 @@ services:
       mlflow server
         --host 0.0.0.0
         --port 5000
-        --backend-store-uri /mlflow/mlruns
+        --allowed-hosts "*"
+        --cors-allowed-origins "*"
+        --backend-store-uri sqlite:////mlflow/mlflow.db
         --default-artifact-root /mlflow/artifacts
 
   # ── 5. Training API ──────────────────────────────────────────────────────────
@@ -94,11 +97,15 @@ services:
     volumes:
       - ./data:/app/data
       - ./models:/app/models
-      - ./mlruns:/app/mlruns
+      - ./models.dvc:/app/models.dvc
+      - ./mlflow:/mlflow
+      - ./mlflow:/app/mlflow
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow:5000
       - DAGSHUB_ACCESS_KEY=${DAGSHUB_ACCESS_KEY}
       - DAGSHUB_SECRET_KEY=${DAGSHUB_SECRET_KEY}
+      - GIT_USER=${GIT_USER}
+      - GIT_TOKEN=${GIT_TOKEN}
     depends_on:
       - mlflow
 

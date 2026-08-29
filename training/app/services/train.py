@@ -40,7 +40,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-from ..core.config import MODELS_DIR
+from ..core.config import MODELS_DIR, BASE_DIR
 from common.nlp_pipeline import processing_pipeline
 from common import setup_git
 
@@ -59,10 +59,52 @@ def download_nltk_resources():
 
 # ── Constantes ─────────────────────────────────────────────────────────────────
 MODELS_DIR   = MODELS_DIR
-MLFLOW_DIR   = Path(__file__).parent.parent / "mlflow"
+MLFLOW_DIR   = BASE_DIR / "mlflow"
 EXPERIMENT   = "SentimentAI - LightGBM"
 CLASS_NAMES = ["Négatif", "Neutre", "Positif"]
 
+
+# ── Fonction DVC Push vers S3 ─────────────────────────────────────────────────
+def push_models_to_s3(base_dir: Path, run_id: str):
+    """
+    Indexe les nouveaux modèles avec DVC, les pousse vers S3/DagsHub,
+    et pousse le fichier de pointeur models.dvc vers GitHub.
+    """
+    try:
+        logger.info("[DVC] Indexation des modèles (dvc add)...")
+        subprocess.run(
+            ["dvc", "add", "models"],
+            cwd=str(base_dir),
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        logger.info("[DVC] Téléversement des modèles vers S3/DagsHub (dvc push)...")
+        result = subprocess.run(
+            ["dvc", "push", "models.dvc"],
+            cwd=str(base_dir),
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        logger.info("[DVC] Modèles poussés sur S3 avec succès : %s", result.stdout.strip())
+        # Versionnage Git du pointeur models.dvc (si Git est configuré)
+        try:
+            logger.info("[Git] Enregistrement de models.dvc sur Git...")
+            subprocess.run(["git", "add", "models.dvc", ".gitignore"], cwd=str(base_dir), check=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"chore(models): retrained model run {run_id}"],
+                cwd=str(base_dir),
+                check=True,
+                capture_output=True
+            )
+            subprocess.run(["git", "push", "origin", "HEAD"], cwd=str(base_dir), check=True)
+            logger.info("[Git] models.dvc poussé sur GitHub.")
+        except subprocess.CalledProcessError as git_err:
+            logger.warning("[Git] Push Git non effectué (DVC push a tout de même réussi) : %s", git_err)
+    except subprocess.CalledProcessError as e:
+        logger.error("Échec lors du dvc push : %s", e.stderr or e.stdout)
+        raise RuntimeError(f"Erreur dvc push vers S3 : {e}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1. CHARGEMENT & NETTOYAGE DES DONNÉES
@@ -183,12 +225,16 @@ def train(
     }
 
     # ── MLflow run ──────────────────────────────────────────────────────────
-    db_path = MLFLOW_DIR / "mlflow.db"
     MLFLOW_DIR.mkdir(parents=True, exist_ok=True)
-    mlflow.set_tracking_uri(f"sqlite:///{db_path.as_posix()}")
+    default_tracking_uri = "http://mlflow:5000" if (os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER")) else "http://localhost:5000"
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", default_tracking_uri)
+    mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(EXPERIMENT)
 
-    with mlflow.start_run(run_name=f"lgbm_{datetime.now():%Y%m%d_%H%M%S}"):
+    with mlflow.start_run(run_name=f"lgbm_{datetime.now():%Y%m%d_%H%M%S}") as run:
+        run_id = run.info.run_id
+        artifacts_dir = BASE_DIR / "training" / "artifacts" / run_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
 
         # Log des hyperparamètres
         mlflow.log_params({
@@ -219,11 +265,10 @@ def train(
         y_pred = model.predict(X_test_tfidf)
 
         acc = accuracy_score(y_test, y_pred)
-        f1  = f1_score(y_test, y_pred, average="weighted")
+        f1  = f1_score(y_test, y_pred, average="weighted", zero_division=0)
         report = classification_report(
-            y_test, y_pred, target_names=CLASS_NAMES, output_dict=True
+            y_test, y_pred, labels=[0, 1, 2], target_names=CLASS_NAMES, zero_division=0, output_dict=True
         )
-
         logger.info("Accuracy : %.4f", acc)
         logger.info("F1-Score (weighted) : %.4f", f1)
 
@@ -231,26 +276,19 @@ def train(
         mlflow.log_metrics({
             "accuracy":            round(acc, 4),
             "f1_weighted":         round(f1, 4),
-            "f1_negatif":          round(report["Négatif"]["f1-score"], 4),
-            "f1_neutre":           round(report["Neutre"]["f1-score"], 4),
-            "f1_positif":          round(report["Positif"]["f1-score"], 4),
-            "precision_negatif":   round(report["Négatif"]["precision"], 4),
-            "precision_neutre":    round(report["Neutre"]["precision"], 4),
-            "precision_positif":   round(report["Positif"]["precision"], 4),
+            "f1_negatif":          round(report.get("Négatif", {}).get("f1-score", 0.0), 4),
+            "f1_neutre":           round(report.get("Neutre", {}).get("f1-score", 0.0), 4),
+            "f1_positif":          round(report.get("Positif", {}).get("f1-score", 0.0), 4),
+            "precision_negatif":   round(report.get("Négatif", {}).get("precision", 0.0), 4),
+            "precision_neutre":    round(report.get("Neutre", {}).get("precision", 0.0), 4),
+            "precision_positif":   round(report.get("Positif", {}).get("precision", 0.0), 4),
             "best_iteration":      model.best_iteration_ or n_estimators,
         })
-
-        # ── Artefacts ───────────────────────────────────────────────────────
-        artifacts_dir = Path("training/artifacts")
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        # Matrice de confusion
         cm_path = artifacts_dir / "confusion_matrix.png"
         fig, ax = plt.subplots(figsize=(6, 5))
         sns.heatmap(
-            confusion_matrix(y_test, y_pred),
+            confusion_matrix(y_test, y_pred, labels=[0, 1, 2]),
             annot=True, fmt="d", cmap="Blues",
-            xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES, ax=ax,
         )
         ax.set_title(f"Matrice de confusion — LightGBM (acc={acc:.3f})")
         ax.set_xlabel("Prédictions")
@@ -258,7 +296,6 @@ def train(
         fig.savefig(cm_path, bbox_inches="tight")
         plt.close(fig)
         mlflow.log_artifact(str(cm_path))
-
         # Top 20 mots importants
         fi_path = artifacts_dir / "feature_importance.png"
         importances = pd.DataFrame({
@@ -276,7 +313,7 @@ def train(
         # Classification report (texte)
         report_path = artifacts_dir / "classification_report.txt"
         report_path.write_text(
-            classification_report(y_test, y_pred, target_names=CLASS_NAMES),
+            classification_report(y_test, y_pred, labels=[0, 1, 2], target_names=CLASS_NAMES, zero_division=0),
             encoding="utf-8",
         )
         mlflow.log_artifact(str(report_path))
@@ -289,7 +326,6 @@ def train(
             serialization_format="pickle",
         )
 
-        run_id = mlflow.active_run().info.run_id
         logger.info("Run MLflow : %s", run_id)
 
         # ── Sauvegarde des .pkl dans models/ ────────────────────────────────
@@ -301,12 +337,8 @@ def train(
         joblib.dump(tfidf, tfidf_path)
         logger.info("Modèles sauvegardés dans %s", MODELS_DIR)
 
-        # subprocess.run(["dvc", "add", str(model_path)], check=True)
-        # subprocess.run(["dvc", "add", str(tfidf_path)], check=True)
-        # subprocess.run(["git", "add", "."], check=True)
-        # subprocess.run(["git", "commit", "-m", f"Add trained models - run {run_id}"], check=True)
-        # subprocess.run(["git", "push"], check=True)
-        # subprocess.run(["dvc", "push"], check=True)
+        # ── Push automatique vers S3 via DVC ──────────────────────────────
+        push_models_to_s3(base_dir=BASE_DIR, run_id=run_id)
 
         # Log des pkl comme artefacts MLflow également
         mlflow.log_artifact(str(model_path))
@@ -321,15 +353,22 @@ def train(
             acc, f1, run_id,
         )
 
+        return {
+            "run_id": run_id,
+            "accuracy": round(float(acc), 4),
+            "f1_score": round(float(f1), 4),
+        }
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAIN
+# 5. CLI & MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Entraînement LightGBM + tracking MLflow")
-    parser.add_argument("--data",                required=True,          help="Chemin vers df_merged_clean.csv")
-    parser.add_argument("--max-features",        type=int,   default=20_000)
+    parser = argparse.ArgumentParser(description="Entraînement LightGBM SentimentAI")
+    parser.add_argument("--data",                type=str,   required=True)
+    parser.add_argument("--dataset-name",        type=str,   default="df_merged_clean_sample2.csv")
+    parser.add_argument("--max-features",        type=int,   default=20000)
     parser.add_argument("--ngram-max",           type=int,   default=2)
     parser.add_argument("--learning-rate",       type=float, default=0.05)
     parser.add_argument("--num-leaves",          type=int,   default=64)
@@ -342,6 +381,7 @@ if __name__ == "__main__":
 
     train(
         csv_path              = args.data,
+        dataset_name          = args.dataset_name,
         max_features          = args.max_features,
         ngram_max             = args.ngram_max,
         learning_rate         = args.learning_rate,

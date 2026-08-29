@@ -27,7 +27,8 @@ print("New CWD:", os.getcwd())
 
 
 # ── CONFIGURATION DES WEBHOOKS MLFLOW ───────────────────────────────────────
-MLFLOW_INTERNAL_URL = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+default_mlflow_url = "http://mlflow:5000" if (os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER")) else "http://localhost:5000"
+MLFLOW_INTERNAL_URL = os.environ.get("MLFLOW_TRACKING_URI", default_mlflow_url)
 WEBHOOK_WORKER_URL = "http://mlflow-webhook-worker:8000/trigger"
 
 def setup_mlflow_webhooks():
