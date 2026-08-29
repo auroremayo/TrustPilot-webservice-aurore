@@ -30,8 +30,8 @@ class Base64(BaseModel):
 
 
 class TrainRequest(BaseModel):
-    data_path: str = Field(description="Chemin vers le fichier CSV de données d'entraînement")
-    dataset_name: str = Field(description="Nom du dataset pour l'entraînement")
+    data_path: str = Field(default="data/raw", description="Chemin vers le fichier CSV de données d'entraînement")
+    dataset_name: str = Field(default="all_raw_data", description="Nom du dataset pour l'entraînement")
     max_features: int = Field(default=20000, ge=1000, le=100000, description="Nombre maximum de features TF-IDF")
     ngram_max: int = Field(default=2, ge=1, le=3, description="N-gram maximum pour TF-IDF")
     learning_rate: float = Field(default=0.05, gt=0, le=1, description="Taux d'apprentissage LightGBM")

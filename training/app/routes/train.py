@@ -57,8 +57,7 @@ def trigger_training(
     try:
         job_id = str(uuid.uuid4())
         train_params = {
-            "csv_path": train_request.data_path,
-            "dataset_name": train_request.dataset_name,
+            "data_path": train_request.data_path,
             "max_features": train_request.max_features,
             "ngram_max": train_request.ngram_max,
             "learning_rate": train_request.learning_rate,

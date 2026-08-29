@@ -25,7 +25,7 @@ def render(token: str):
             data_path = st.text_input(
                 "Chemin vers le fichier CSV de données d'entraînement", 
                 value="data/raw",
-                help="Chemin absolu ou relatif aux données contenues dans le stockage S3 de DagsHub."
+                help="Dossier ou chemin des données d'entraînement contenues dans le stockage S3 de DagsHub."
             )
         with c2:
             dataset_name = st.text_input(
