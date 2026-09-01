@@ -6,6 +6,7 @@ pydantic
 joblib
 referencing
 nltk
+pygtrie==2.5.0
 dvc[s3]
 uvicorn
 lightgbm

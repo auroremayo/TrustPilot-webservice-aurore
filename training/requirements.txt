@@ -12,4 +12,5 @@ fastapi
 bcrypt
 uvicorn
 boto3
+pygtrie==2.5.0
 dvc[s3]

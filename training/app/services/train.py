@@ -22,6 +22,7 @@ import joblib
 import lightgbm as lgb
 import matplotlib.pyplot as plt
 import mlflow
+import mlflow.data
 import mlflow.lightgbm
 import mlflow.sklearn
 import nltk
@@ -110,15 +111,50 @@ def push_models_to_s3(base_dir: Path, run_id: str):
 # 1. CHARGEMENT & NETTOYAGE DES DONNÉES
 # ══════════════════════════════════════════════════════════════════════════════
 
-def load_and_clean(csv_path: str) -> pd.DataFrame:
-    logger.info("Chargement du CSV : %s", csv_path)
-    df = pd.read_csv(csv_path)
-    logger.info("Lignes brutes : %d", len(df))
+from pathlib import Path
+import pandas as pd
+import logging
 
+logger = logging.getLogger(__name__)
+
+def load_and_clean(data_path: str = "data/raw") -> pd.DataFrame:
+    """
+    Charge et fusionne dynamiquement les fichiers CSV présents
+    dans le dossier de données, élimine les doublons et filtre.
+    """
+    path = Path(data_path)
+    csv_files = list(path.glob("*.csv"))
+
+    if not csv_files:
+        raise FileNotFoundError(f"Aucun fichier CSV trouvé dans le répertoire : {data_path}")
+
+    logger.info("Chargement des fichiers : %s", [f.name for f in csv_files])
+    
+    # Concaténation des fichiers du dossier
+    try:
+        df = pd.concat([pd.read_csv(f) for f in csv_files], ignore_index=True)
+    except Exception as e:
+        logger.error(f"Erreur lors de la lecture des fichiers CSV : {e}")
+        raise
+    logger.info("Total lignes brutes chargées : %d", len(df))
+
+    # Déduplication globale entre les différents batchs
+    if "reviewText" in df.columns:
+        df.drop_duplicates(subset=["reviewText"], keep="last", inplace=True)
+
+    # Filtrage langue anglaise
+    if "language" in df.columns:
+        df = df.loc[df["language"].str.lower() == "en"].copy()
+
+    # Remplacement des valeurs manquantes dans summary
     df["summary"] = df["summary"].fillna("")
-    df = df.loc[df["year_y"] > 2009].copy()
+
+    # Filtrage temporel
+    if "year_y" in df.columns:
+        df = df.loc[df["year_y"] > 2009].copy()
+
     df = df.reset_index(drop=True)
-    logger.info("Lignes après nettoyage : %d", len(df))
+    logger.info("Total lignes après nettoyage et fusion : %d", len(df))
     return df
 
 
@@ -166,8 +202,7 @@ def balance_dataset(X: pd.Series, y: pd.Series) -> tuple[pd.Series, pd.Series]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def train(
-    csv_path: str,
-    dataset_name: str,
+    data_path: str = "data/raw",
     max_features: int = 20_000,
     ngram_max: int = 2,
     learning_rate: float = 0.05,
@@ -181,14 +216,22 @@ def train(
     download_nltk_resources()
 
     setup_git.setup_git_auth()
-    dataset_path = csv_path + "/" + dataset_name
   
     # pull dataset depuis DVC
-    subprocess.run(["dvc", "pull", dataset_path], check=True)
+    data_path_obj = Path(data_path)
+    try:
+        if data_path_obj.is_dir():
+            dvc_files = list(data_path_obj.glob("*.dvc"))
+            if dvc_files:
+                logger.info("DVC pull des fichiers : %s", [str(f) for f in dvc_files])
+                subprocess.run(["dvc", "pull"] + [str(f) for f in dvc_files], check=True)
+            else:
+                logger.info("Aucun fichier .dvc spécifique trouvé")
+    except Exception as e:
+        logger.warning(f"Avertissement lors du dvc pull : {e}. Utilisation des données locales existantes.")
 
     # ── Chargement ──────────────────────────────────────────────────────────
-    csv_file = csv_path + "/" + dataset_name
-    df = load_and_clean(csv_file)
+    df = load_and_clean(data_path)
 
     # ── Préprocessing ────────────────────────────────────────────────────────
     texts = preprocess_text(df)
@@ -235,9 +278,27 @@ def train(
         run_id = run.info.run_id
         artifacts_dir = BASE_DIR / "training" / "artifacts" / run_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-        # Log des hyperparamètres
+        
+        # Traçabilité du dataset
+        csv_files = list(Path(data_path).glob("*.csv"))
+        file_names = [f.name for f in csv_files]
+        
+        # Création de l'objet Dataset MLflow
+        mlflow_dataset = mlflow.data.from_pandas(
+            df,
+            source=str(data_path),
+            name=f"raw_combined_{len(csv_files)}_files",
+            targets="overall"
+        )
+        
+        # Enregistrement du dataset dans le run
+        mlflow.log_input(mlflow_dataset, context="training")
+        
+        # Log des paramètres du dataset et hyperparamètres des modèles
         mlflow.log_params({
+            "data_source":          data_path,
+            "source_files":         ", ".join(file_names),
+            "source_files_count":   len(csv_files),
             "max_features":         max_features,
             "ngram_range":          f"(1,{ngram_max})",
             "learning_rate":        learning_rate,
@@ -366,8 +427,7 @@ def train(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Entraînement LightGBM SentimentAI")
-    parser.add_argument("--data",                type=str,   required=True)
-    parser.add_argument("--dataset-name",        type=str,   default="df_merged_clean_sample2.csv")
+    parser.add_argument("--data",         type=str, default="data/raw", help="Chemin du dossier de données ou du CSV")
     parser.add_argument("--max-features",        type=int,   default=20000)
     parser.add_argument("--ngram-max",           type=int,   default=2)
     parser.add_argument("--learning-rate",       type=float, default=0.05)
@@ -380,8 +440,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train(
-        csv_path              = args.data,
-        dataset_name          = args.dataset_name,
+        data_path             = args.data,
         max_features          = args.max_features,
         ngram_max             = args.ngram_max,
         learning_rate         = args.learning_rate,
