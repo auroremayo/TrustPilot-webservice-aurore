@@ -21,25 +21,3 @@ RUN git init
 
 # ── 5. Lancer l'API
 CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-WORKDIR /app
-
-# 1. Copier d'abord le fichier de dépendances
-# Suppression du "/" devant training
-COPY training/requirements.txt ./training/requirements.txt
-
-# 2. Installer les dépendances
-# On peut grouper les pip install pour réduire le nombre de couches
-RUN pip install --no-cache-dir uv
-RUN uv pip install --system --no-cache-dir -r training/requirements.txt
-
-# 3. Copier les dossiers de code et configuration DVC
-COPY common ./common
-COPY training/app ./training/app
-COPY .dvc ./.dvc
-COPY .dvcignore ./.dvcignore
-
-RUN git init
-
-# Lancer l'API avec Uvicorn
-CMD ["uvicorn", "training.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -132,7 +132,7 @@ def load_and_clean(data_path: str = "data/raw") -> pd.DataFrame:
     
     # Concaténation des fichiers du dossier
     try:
-    df = pd.concat([pd.read_csv(f) for f in csv_files], ignore_index=True)
+        df = pd.concat([pd.read_csv(f) for f in csv_files], ignore_index=True)
     except Exception as e:
         logger.error(f"Erreur lors de la lecture des fichiers CSV : {e}")
         raise
@@ -218,7 +218,17 @@ def train(
     setup_git.setup_git_auth()
   
     # pull dataset depuis DVC
-    subprocess.run(["dvc", "pull", data_path], check=True)
+    data_path_obj = Path(data_path)
+    try:
+        if data_path_obj.is_dir():
+            dvc_files = list(data_path_obj.glob("*.dvc"))
+            if dvc_files:
+                logger.info("DVC pull des fichiers : %s", [str(f) for f in dvc_files])
+                subprocess.run(["dvc", "pull"] + [str(f) for f in dvc_files], check=True)
+            else:
+                logger.info("Aucun fichier .dvc spécifique trouvé")
+    except Exception as e:
+        logger.warning(f"Avertissement lors du dvc pull : {e}. Utilisation des données locales existantes.")
 
     # ── Chargement ──────────────────────────────────────────────────────────
     df = load_and_clean(data_path)
