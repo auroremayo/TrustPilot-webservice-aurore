@@ -128,13 +128,39 @@ Test-api/
 │       ├── routes/
 │       │   ├── auth.py             # POST /login, POST /token_API, GET /verify_admin
 │       │   ├── predict.py          # POST /predict (protégé par Nginx auth_request)
-│       │   └── monitoring.py       # GET /quota/status, /predictions/history, POST /feedback, GET /monitor/stats
+│       │   ├── monitoring.py       # GET /quota/status, /predictions/history, POST /feedback, GET /monitor/stats
+│       │   └── reload.py           # POST /internal/reload-model — rechargement à chaud du modèle (Airflow)
 │       ├── schemas/
 │       │   └── models.py           # Modèles Pydantic : UserCreate, UserLogin, Review, FeedbackPayload
 │       └── services/
 │           ├── ml_service.py       # Chargement LightGBM + TF-IDF (singleton), pipeline prédiction
 │           ├── monitor_service.py  # Append log JSONL, calcul KL divergence, get_monitoring_stats
 │           └── users.py            # load_users() / save_users() — lecture/écriture users.json
+│
+├── training/                       # Service FastAPI d'entraînement (séparé du backend)
+│   ├── Dockerfile
+│   ├── requirements.txt            # Dépendances runtime du service
+│   ├── requirements_train.txt      # Dépendances lourdes d'entraînement (lightgbm, mlflow, shap…)
+│   └── app/
+│       ├── main.py                 # App FastAPI, root_path="/train", inclut les routers train + health
+│       ├── core/
+│       │   ├── config.py           # BASE_DIR, MODELS_DIR
+│       │   └── security.py
+│       ├── routes/
+│       │   ├── train.py            # POST /train (+ /train/train), GET /status/{job_id}, GET /jobs — jobs async
+│       │   └── health.py           # GET /health du service d'entraînement
+│       ├── schemas/
+│       │   ├── data.py             # RawReviewItem — validation des avis bruts ingérés
+│       │   └── models.py           # TrainRequest — hyperparamètres d'entraînement
+│       └── services/
+│           ├── train.py            # Pipeline complet : load_and_clean → TF-IDF → LightGBM → MLflow → dvc push
+│           ├── data_ingestion.py   # ingest_and_version_data — ajout/dédup d'avis dans data/raw + versionnage DVC
+│           ├── monitor_service.py
+│           └── users.py
+│
+├── common/                         # Code partagé entre backend et training
+│   ├── nlp_pipeline.py             # processing_pipeline — préprocessing texte NLTK
+│   └── setup_git.py                # setup_git_auth — injecte GIT_USER/GIT_TOKEN dans le remote (CI)
 │
 ├── frontend/                       # Service Streamlit
 │   ├── Dockerfile                  # Image Python 3.12-slim, installe requirements.txt
@@ -160,11 +186,12 @@ Test-api/
 │
 ├── data/                           # Données persistantes — montées en volumes Docker
 │   ├── users.json                  # Base utilisateurs (hash SHA-256, rôles, tokens, quotas)
-│   └── predictions_log.jsonl       # Log append-only de chaque prédiction (1 JSON par ligne)
+│   ├── predictions_log.jsonl       # Log append-only de chaque prédiction (1 JSON par ligne)
+│   └── raw/                        # Datasets d'entraînement CSV, versionnés DVC (*.csv + *.csv.dvc)
 │
-├── models/                         # Modèles ML — montés en volume Docker (read-only)
+├── models/                         # Modèles ML — versionnés DVC (models.dvc), montés en volume Docker
 │   ├── trustpilot_lgbm_model.pkl   # Modèle LightGBM entraîné (3 classes)
-│   └── tfidf_vectorizer.pkl        # Vectoriseur TF-IDF fitté (5 000 features)
+│   └── tfidf_vectorizer.pkl        # Vectoriseur TF-IDF fitté
 │
 └── tests/                          # Tests automatisés (pytest)
     ├── conftest.py                 # Fixtures partagées : client TestClient, mocks modèle ML, fichiers tmp
@@ -637,7 +664,7 @@ pytest tests/ -v
 
 ## 🔁 Réentraîner le modèle
 
-Si le monitoring indique un drift critique (`kl_divergence ≥ 0.30`), utiliser le script de réentraînement intégré avec tracking MLflow.
+Si le monitoring indique un drift critique (`kl_divergence ≥ 0.30`), le réentraînement est assuré par le **service FastAPI dédié** (`training/`), avec tracking MLflow. L'entraînement porte sur **tous les fichiers CSV présents dans `data/raw/`** (fusion + déduplication sur `reviewText`).
 
 ### Prérequis
 
@@ -645,30 +672,52 @@ Si le monitoring indique un drift critique (`kl_divergence ≥ 0.30`), utiliser 
 pip install -r training/requirements_train.txt
 ```
 
-### Lancer l'entraînement
+### Méthode 1 — Via l'API (recommandé, utilisé par Airflow)
+
+Le service d'entraînement expose ses routes sous le préfixe `/train` (root_path). Le job tourne en **arrière-plan** et renvoie immédiatement un `job_id` à sonder.
 
 ```bash
-# Entraînement avec les paramètres par défaut
-python training/train.py --data path/to/df_merged_clean.csv
+# Lancer un entraînement (paramètres par défaut définis dans TrainRequest)
+curl -X POST http://localhost:8080/train/train \
+  -H "Content-Type: application/json" \
+  -d '{}'
+# → { "job_id": "…", "status": "PENDING", "message": "Training lancé en arrière-plan." }
+
+# Sonder l'état du job
+curl http://localhost:8080/train/status/<job_id>
+# → { "status": "SUCCESS", "duration_seconds": …, "result": { "run_id": …, "accuracy": …, "f1_score": … } }
+
+# Lister tous les jobs récents
+curl http://localhost:8080/train/jobs
+```
+
+### Méthode 2 — En ligne de commande
+
+Le pipeline reste exécutable directement en tant que module Python :
+
+```bash
+# Entraînement avec les paramètres par défaut (data/raw = tous les CSV du dossier)
+python -m training.app.services.train --data data/raw
 
 # Avec des hyperparamètres personnalisés
-python training/train.py \
-  --data path/to/df_merged_clean.csv \
+python -m training.app.services.train \
+  --data data/raw \
   --max-features 20000 \
   --num-leaves 64 \
   --learning-rate 0.05 \
   --n-estimators 1000
 ```
 
-Le script effectue automatiquement :
-- Nettoyage du CSV (filtrage, gestion des NaN)
+Le pipeline effectue automatiquement :
+- **`dvc pull`** des datasets `data/raw/*.dvc` avant l'entraînement
+- Fusion de tous les CSV de `data/raw/` + déduplication sur `reviewText`, filtrage (langue `en`, `year_y > 2009`)
 - Préprocessing texte (lowercase → suppression ponctuation/chiffres → tokenisation → stopwords → lemmatisation)
 - Regroupement des labels (1,2→Négatif · 3→Neutre · 4,5→Positif)
 - Rééquilibrage des classes (sous-échantillonnage)
-- Vectorisation TF-IDF
+- Vectorisation TF-IDF (`max_features=20000`, ngrams 1-2)
 - Entraînement LightGBM avec early stopping
-- **Log MLflow** : hyperparamètres, métriques, artefacts (matrice de confusion, feature importance, rapport de classification)
-- **Sauvegarde automatique** des `.pkl` dans `models/`
+- **Log MLflow** : traçabilité du dataset (`mlflow.data`), hyperparamètres, métriques, artefacts (matrice de confusion, feature importance, rapport de classification)
+- **Sauvegarde** des `.pkl` dans `models/` puis **`dvc add` + `dvc push`** (S3/DagsHub) et commit/push du pointeur `models.dvc`
 
 ### Voir les résultats dans MLflow
 
@@ -870,7 +919,7 @@ docker compose up --build
 | **Conteneurisation** | Docker + Docker Compose | 3 services orchestrés |
 | **Persistance** | JSON (users) + JSONL (logs) | Fichiers montés en volumes Docker |
 | **Experiment tracking** | MLflow | Hyperparamètres, métriques, artefacts, model registry |
-| **Versioning data** | DVC | Configuration présente (`.dvc/`) |
+| **Versioning data & modèles** | DVC | `data/raw/*.csv` + `models/` versionnés, push vers S3/DagsHub |
 | **Sérialisation** | Joblib | Sauvegarde/chargement des modèles `.pkl` |
  
 ---
